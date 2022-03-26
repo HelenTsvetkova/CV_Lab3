@@ -48,7 +48,7 @@ static void trackbar_handler(int, void*) {
     cv::imshow("Settings", outputPhoto);
 }
 
-cv::Point2d detectPlane() {
+std::vector<cv::Point2d> detectPlane() {
 
     cv::threshold(outputPhoto, outputPhoto, 240., 256., cv::THRESH_BINARY);
 
@@ -80,7 +80,7 @@ cv::Point2d detectPlane() {
         cv::circle(outputPhoto, targets[targetIdx], 5, cv::Scalar(0, 0, 255),-1);
         targetIdx++;
     }
-
+    return targets;
 }
 
 int main(int argc, char* argv[]) {
@@ -119,10 +119,14 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    detectPlane();
+    std::vector<cv::Point2d> targets = detectPlane();
     cv::namedWindow("detection", cv::WINDOW_FREERATIO);
     cv::imshow("detection", outputPhoto);
     cv::waitKey();
+
+    for(size_t i = 0; i < targets.size(); i++) {
+        std::cout << "Target's " << i << " coordinates : " << targets[i] << std::endl;
+    }
 
 	return 0;
 }
