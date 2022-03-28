@@ -16,7 +16,6 @@ using std::sort;
 using namespace cv;
 
 static cv::Mat inputPhoto;
-static cv::Mat outputPhoto;
 static int Hmin = 0;
 static int Hmax = 256;
 static int Smin = 0;
@@ -37,6 +36,8 @@ static void trackbar_handler(int, void*) {
         return;
     }
     // Отфильтровываем только то, что нужно, по диапазону цветов
+    cv::Mat outputPhoto = inputPhoto.clone();
+    cv::cvtColor(inputPhoto, outputPhoto, cv::COLOR_RGB2GRAY);
     cv::inRange(
         inputPhoto,
         cv::Scalar( Hmin, Smin, Vmin ),
@@ -48,14 +49,23 @@ static void trackbar_handler(int, void*) {
     cv::imshow("Settings", outputPhoto);
 }
 
-std::vector<cv::Point2d> detectPlane() {
+std::vector<cv::Point2d> detectPlane(cv::Mat &inputPhoto, cv::Mat &targetPhoto) {
 
-    cv::threshold(outputPhoto, outputPhoto, 240., 256., cv::THRESH_BINARY);
+    targetPhoto = inputPhoto.clone();
+    cv::cvtColor(inputPhoto, targetPhoto, cv::COLOR_RGB2GRAY);
+    cv::inRange(
+        inputPhoto,
+        cv::Scalar( Hmin, Smin, Vmin ),
+        cv::Scalar( Hmax, Smax, Vmax ),
+        targetPhoto
+    );
+
+    cv::threshold(targetPhoto, targetPhoto, 240., 256., cv::THRESH_BINARY);
 
     // ищем контур цели
     std::vector< std::vector<cv::Point> > contours;
     std::vector<cv::Point2d> targets;
-    cv::findContours(outputPhoto, contours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(targetPhoto, contours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
     std::map<double, int> contourAreas;
     for(size_t i = 1; i < contours.size(); i++) {
@@ -70,14 +80,14 @@ std::vector<cv::Point2d> detectPlane() {
         }
     }
 
-    cv::cvtColor(outputPhoto, outputPhoto, cv::COLOR_GRAY2RGB);
+    cv::cvtColor(targetPhoto, targetPhoto, cv::COLOR_GRAY2RGB);
 
     int targetIdx = 0;
     for(auto contourSizes_it = contourAreas.begin(); contourSizes_it != contourAreas.end(); contourSizes_it++) {
         int contourIdx = contourSizes_it->second;
-        cv::drawContours(outputPhoto, contours, contourIdx, cv::Scalar(0, 0, 255), 1);
-        cv::putText(outputPhoto, std::string("point ") + std::to_string(targetIdx), targets[targetIdx] + cv::Point2d(5,5), cv::FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar(0, 0, 255));
-        cv::circle(outputPhoto, targets[targetIdx], 5, cv::Scalar(0, 0, 255),-1);
+        cv::drawContours(targetPhoto, contours, contourIdx, cv::Scalar(0, 0, 255), 1);
+        cv::putText(targetPhoto, std::string("point ") + std::to_string(targetIdx), targets[targetIdx] + cv::Point2d(5,5), cv::FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar(0, 0, 255));
+        cv::circle(targetPhoto, targets[targetIdx], 5, cv::Scalar(0, 0, 255),-1);
         targetIdx++;
     }
     return targets;
@@ -96,9 +106,6 @@ int main(int argc, char* argv[]) {
         std::cout << "Photo is empty" << std::endl;
         return 1;
     }
-
-    outputPhoto = inputPhoto.clone();
-    cv::cvtColor(inputPhoto, outputPhoto, cv::COLOR_RGB2GRAY);
 
     // Создаём ползунки для последующей коррекции параметров HSV
     namedWindow("Settings", cv::WINDOW_NORMAL);
@@ -119,9 +126,10 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::vector<cv::Point2d> targets = detectPlane();
+    cv::Mat targetPhoto;
+    std::vector<cv::Point2d> targets = detectPlane(inputPhoto, targetPhoto);
     cv::namedWindow("detection", cv::WINDOW_FREERATIO);
-    cv::imshow("detection", outputPhoto);
+    cv::imshow("detection", targetPhoto);
     cv::waitKey();
 
     for(size_t i = 0; i < targets.size(); i++) {
