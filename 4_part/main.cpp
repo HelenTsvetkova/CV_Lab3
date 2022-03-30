@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include <string>
 #include <map>
 #include <set>
@@ -16,12 +16,13 @@ using std::stoi;
 using std::sort;
 using namespace cv;
 
-void detectDetail(cv::Mat & inputImage, cv::Mat & detailPattern, std::vector< std::vector<cv::Point> > & details,
+void detectDetail(cv::Mat & detailsImage, cv::Mat & patternImage, std::vector< std::vector<cv::Point> > & details,
                   std::vector< std::vector<cv::Point> > & defectDetails) {
 
     // контуры паттерна
-    cv::Mat patternGray = detailPattern.clone();
+    cv::Mat patternGray = patternImage.clone();
     cv::cvtColor(patternGray, patternGray, cv::COLOR_BGR2GRAY);
+    cv::threshold(patternGray, patternGray, 240., 256., cv::THRESH_BINARY);
     std::vector< std::vector<cv::Point> > contoursPattern;
     cv::findContours(patternGray, contoursPattern, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
     int patternContourIdx = 0;
@@ -34,52 +35,29 @@ void detectDetail(cv::Mat & inputImage, cv::Mat & detailPattern, std::vector< st
         }
     }
 
-    // предобработка фото
-    cv::Mat contourImage = inputImage.clone();
-    cv::cvtColor(contourImage, contourImage, cv::COLOR_BGR2GRAY);
-    cv::threshold(contourImage, contourImage, 240., 256., cv::THRESH_BINARY);
-
     // ищем контуры на фото с деталями
+    cv::Mat detailsGray = detailsImage.clone();
+    cv::cvtColor(detailsGray, detailsGray, cv::COLOR_BGR2GRAY);
+    cv::threshold(detailsGray, detailsGray, 240., 256., cv::THRESH_BINARY);
     std::vector< std::vector<cv::Point> > contours;
-    cv::findContours(contourImage, contours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(detailsGray, contours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
     // сравнение контуров
-    std::multimap<double, int> contoursMatchResults;
+    double thresholdMax = 4.0;
+    double thresholdMin = 0.8;
     for(size_t i = 0; i < contours.size(); i++) {
         double matchResult = cv::matchShapes(
                     contoursPattern[patternContourIdx],
                     contours[i], cv::CONTOURS_MATCH_I2, 0
                     );
-        contoursMatchResults.insert(std::pair<double, int>(matchResult, i));
-    }
-
-    for(auto contourIt = contoursMatchResults.begin(); contourIt != contoursMatchResults.end(); contourIt++) {
-        if(contourIt->first > 0.8) {
-            defectDetails.push_back(contours[contourIt->second]);
-        } else {
-            details.push_back(contours[contourIt->second]);
+        if(matchResult < thresholdMax) {
+            if(matchResult > thresholdMin) {
+                defectDetails.push_back(contours[i]);
+            } else {
+                details.push_back(contours[i]);
+            }
         }
     }
-
-
-//    // обработка контуров
-//    std::multimap<double, int> contourAreas;
-//    for(size_t i = 0; i < contours.size(); i++) {
-//        double area = cv::contourArea(contours[i]);
-//        contourAreas.insert(std::pair<double, int>(area, i));
-//    }
-
-//    // вывод на фото
-//    int targetIdx = 0;
-//    for(auto contourSizes_it = contourAreas.rbegin(); contourSizes_it != contourAreas.rend(); contourSizes_it++) {
-//        int contourIdx = contourSizes_it->second;
-//        cv::drawContours(inputImage, contours, contourIdx, cv::Scalar(0, 0, 255), 1);
-//        cv::putText(inputImage, std::string("point ") + std::to_string(targetIdx), contours[contourIdx][0], cv::FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar(0, 0, 255));
-//        targetIdx++;
-//    }
-//    cv::imshow("corners", inputImage);
-//    cv::waitKey();
-
 }
 
 int main(int argc, char* argv[]) {
@@ -90,28 +68,34 @@ int main(int argc, char* argv[]) {
     }
 
     std::string filePath = argv[1];
-    cv::Mat inputPhoto = imread(filePath);
-    if(inputPhoto.empty()) {
+    cv::Mat detailsImage = imread(filePath);
+    if(detailsImage.empty()) {
         std::cout << "Photo is empty" << std::endl;
         return 1;
     }
 
     filePath = argv[2];
-    cv::Mat patternPhoto = imread(filePath);
-    if(patternPhoto.empty()) {
+    cv::Mat patternImage = imread(filePath);
+    if(patternImage.empty()) {
         std::cout << "Pattern photo is empty" << std::endl;
         return 1;
     }
 
-    std::vector< std::vector<cv::Point> >  detailsCont;
-    std::vector< std::vector<cv::Point> >  defectDetailsCont;
-    detectDetail(inputPhoto, patternPhoto, detailsCont, defectDetailsCont);
+    std::vector< std::vector<cv::Point> >  detailsContours;
+    std::vector< std::vector<cv::Point> >  defectDetailsContours;
+    detectDetail(detailsImage, patternImage, detailsContours, defectDetailsContours);
 
-    for(size_t i = 0; i < detailsCont.size(); i++) {
-        cv::drawContours(inputPhoto, detailsCont, i, cv::Scalar(0, 0, 255), 3);
+    for(size_t i = 0; i < detailsContours.size(); i++) {
+        cv::drawContours(detailsImage, detailsContours, i, cv::Scalar(0, 255, 0), 3);
+        cv::putText(detailsImage, std::string("detail ") + std::to_string(i), detailsContours[i][0], cv::FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar(0, 255, 0));
     }
 
-    imshow("inputPhoto", inputPhoto);
+    for(size_t i = 0; i < defectDetailsContours.size(); i++) {
+        cv::drawContours(detailsImage, defectDetailsContours, i, cv::Scalar(0, 0, 255), 3);
+        cv::putText(detailsImage, std::string("defect ") + std::to_string(i), defectDetailsContours[i][0], cv::FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar(0, 0, 255));
+    }
+
+    imshow("Defect details image", detailsImage);
     waitKey();
 
     return 0;
