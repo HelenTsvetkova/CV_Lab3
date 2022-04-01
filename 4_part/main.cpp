@@ -23,38 +23,55 @@ void detectDetail(cv::Mat & detailsImage, cv::Mat & patternImage, std::vector< s
     cv::Mat patternGray = patternImage.clone();
     cv::cvtColor(patternGray, patternGray, cv::COLOR_BGR2GRAY);
     cv::threshold(patternGray, patternGray, 240., 256., cv::THRESH_BINARY);
-    std::vector< std::vector<cv::Point> > contoursPattern;
-    cv::findContours(patternGray, contoursPattern, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
-    int patternContourIdx = 0;
+    std::vector< std::vector<cv::Point> > contoursBuf;
+    cv::findContours(patternGray, contoursBuf, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+
+    // фильтруем контуры, находим предполагаемый контур паттерна
+    int minPoints = 20; //принимаем минимальное количество углов у контура детали
+    int patternContourIdx = -1;
     double maxArea = 0.0;
-    for(size_t i = 0; i < contoursPattern.size(); i++) {
-        double area = cv::contourArea(contoursPattern[i]);
+    for(size_t i = 0; i < contoursBuf.size(); i++) {
+        if(contoursBuf[i].size() < minPoints) {
+            continue;
+        }
+        double area = cv::contourArea(contoursBuf[i]);
         if(area > maxArea) {
             maxArea = area;
             patternContourIdx = i;
         }
     }
 
+    if(patternContourIdx == -1) {
+        std::cout << "Error detecting pattern contour" << std::endl;
+        return;
+    }
+    std::vector<cv::Point> contourPattern = contoursBuf[patternContourIdx];
+
     // ищем контуры на фото с деталями
     cv::Mat detailsGray = detailsImage.clone();
     cv::cvtColor(detailsGray, detailsGray, cv::COLOR_BGR2GRAY);
     cv::threshold(detailsGray, detailsGray, 240., 256., cv::THRESH_BINARY);
-    std::vector< std::vector<cv::Point> > contours;
-    cv::findContours(detailsGray, contours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+    contoursBuf.clear();
+    cv::findContours(detailsGray, contoursBuf, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
-    // сравнение контуров
-    double thresholdMax = 4.0;
-    double thresholdMin = 0.8;
-    for(size_t i = 0; i < contours.size(); i++) {
-        double matchResult = cv::matchShapes(
-                    contoursPattern[patternContourIdx],
-                    contours[i], cv::CONTOURS_MATCH_I2, 0
-                    );
+    // фильтруем контуры по количеству точек
+    std::vector< std::vector<cv::Point> > contoursDetails;
+    for(size_t i = 0; i < contoursBuf.size(); i++) {
+        if(contoursBuf[i].size() > minPoints) {
+            contoursDetails.push_back(contoursBuf[i]);
+        }
+    }
+
+    // фильтруем контуры, сравнивая их с контуром паттерна
+    double thresholdMax = 4.0; // мера для определения деталей отдалённо напоминающих паттерн
+    double thresholdMin = 0.8; // мера для определения деталей сильно напоминающих паттерн
+    for(size_t i = 0; i < contoursDetails.size(); i++) {
+        double matchResult = cv::matchShapes(contourPattern,contoursDetails[i], cv::CONTOURS_MATCH_I2, 0);
         if(matchResult < thresholdMax) {
             if(matchResult > thresholdMin) {
-                defectDetails.push_back(contours[i]);
+                defectDetails.push_back(contoursDetails[i]);
             } else {
-                details.push_back(contours[i]);
+                details.push_back(contoursDetails[i]);
             }
         }
     }
