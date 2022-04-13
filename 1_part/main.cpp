@@ -81,6 +81,9 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    cv::imshow("photo", inputPhoto);
+    cv::waitKey();
+
     // Создаём ползунки для последующей коррекции параметров HSV
     namedWindow("Settings Threshold", cv::WINDOW_NORMAL);
     cv::createTrackbar("Threshold from", "Settings Threshold", &thresholdMin, 256, trackbar_handler);

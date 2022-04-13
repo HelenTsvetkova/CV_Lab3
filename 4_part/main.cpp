@@ -91,6 +91,9 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    cv::imshow("photo", detailsImage);
+    cv::waitKey();
+
     filePath = argv[2];
     cv::Mat patternImage = imread(filePath);
     if(patternImage.empty()) {

@@ -107,6 +107,9 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    cv::imshow("photo", inputPhoto);
+    cv::waitKey();
+
     // Создаём ползунки для последующей коррекции параметров HSV
     namedWindow("Settings", cv::WINDOW_NORMAL);
     cv::createTrackbar("Hue from","Settings", &Hmin, HSVmax,trackbar_handler);
